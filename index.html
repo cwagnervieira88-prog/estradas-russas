@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clique Russas - Alerta de Estradas</title>
+    <!-- Tailwind CSS para design limpo e responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet.js para o Mapa Interativo -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 450px; width: 100%; border-radius: 0.5rem; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white shadow-md">
+        <div class="container mx-auto px-4 py-5 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold tracking-wide">Estradas de Russas</h1>
+                <p class="text-xs text-blue-200">Informativos da malha viária em tempo real</p>
+            </div>
+            <span class="bg-green-500 text-xs font-bold px-3 py-1 rounded-full animate-pulse">● Monitoramento Ativo</span>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Coluna Esquerda: Formulário de Envio -->
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-100 h-fit">
+            <h2 class="text-xl font-bold mb-4 text-blue-800 flex items-center gap-2">
+                📢 Enviar Novo Alerta
+            </h2>
+            <form id="alertForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Localização / Estrada</label>
+                    <input type="text" id="location" required placeholder="Ex: BR-116 próximo ao Triângulo, Estrada de Flores..." class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Tipo de Ocorrência</label>
+                        <select id="type" class="w-full p-2 border border-gray-300 rounded bg-white">
+                            <option value="⚠️ Buraco / Erosão">Buraco / Erosão</option>
+                            <option value="🌧️ Alagamento">Alagamento</option>
+                            <option value="🚧 Obras na Pista">Obras na Pista</option>
+                            <option value="🚗 Trânsito Retido">Trânsito Retido</option>
+                            <option value="❌ Interdição Total">Interdição Total</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Gravidade</label>
+                        <select id="severity" class="w-full p-2 border border-gray-300 rounded bg-white">
+                            <option value="Atenção (Leve)">Atenção (Leve)</option>
+                            <option value="Perigo (Moderado)">Perigo (Moderado)</option>
+                            <option value="Crítico (Grave)">Crítico (Grave)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Descrição Adicional</label>
+                    <textarea id="description" rows="3" placeholder="Detalhes como: 'Apenas faixa da direita', 'Evitar carros pequenos'..." class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded transition shadow">
+                    Publicar Informativo
+                </button>
+            </form>
+        </div>
+
+        <!-- Coluna Direita e Central: Mapa e Listagem -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Mapa -->
+            <div class="bg-white p-4 rounded-lg shadow-md border border-gray-100">
+                <h3 class="text-lg font-bold mb-3 text-gray-700">🗺️ Mapa de Alertas Viários</h3>
+                <div id="map"></div>
+                <p class="text-xs text-gray-500 mt-2">*Marcadores posicionados de forma aproximada no centro de Russas para fins de demonstração.</p>
+            </div>
+
+            <!-- Feed de Alertas -->
+            <div class="bg-white p-6 rounded-lg shadow-md border border-gray-100">
+                <h3 class="text-lg font-bold mb-4 text-gray-700">⏱️ Últimos Alertas Relatados</h3>
+                <div id="feedList" class="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                    <!-- Alertas inseridos via JavaScript entrarão aqui -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-gray-800 text-gray-400 py-6 mt-12 text-center text-sm border-t border-gray-700">
+        <p>Plataforma Colaborativa Cidadã • Russas-CE</p>
+    </footer>
+
+    <!-- Lógica de Funcionamento (JavaScript) -->
+    <script>
+        // 1. Inicializar o Mapa centralizado em Russas, CE
+        const russasCoords = [-4.9378, -37.9747];
+        const map = L.map('map').setView(russasCoords, 13);
+
+        // Adicionar camada do OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Banco de dados simulado (Em memória)
+        const alerts = [
+            {
+                id: 1,
+                location: "BR-116, Km 162 (Próximo ao Posto)",
+                type: "⚠️ Buraco / Erosão",
+                severity: "Crítico (Grave)",
+                description: "Cratera enorme na faixa direita sentido Fortaleza. Risco de corte de pneu.",
+                time: "Há 5 min",
+                coords: [-4.9420, -37.9680]
+            },
+            {
+                id: 2,
+                location: "Estrada Vicinal para Lagoa Grande",
+                type: "🌧️ Alagamento",
+                severity: "Perigo (Moderado)",
+                description: "Acúmulo de água após a chuva de ontem à noite. Passa apenas veículos altos.",
+                time: "Há 42 min",
+                coords: [-4.9250, -37.9900]
+            }
+        ];
+
+        // Função para renderizar os alertas no Feed e no Mapa
+        function renderAlerts() {
+            const feedList = document.getElementById('feedList');
+            feedList.innerHTML = ''; // Limpa o feed
+
+            // Limpa marcadores antigos se necessário (simplificado para o protótipo)
+            alerts.forEach(alert => {
+                // Inserção no Feed Lateral
+                const severityColor = alert.severity.includes("Crítico") ? "bg-red-100 border-red-400 text-red-800" : 
+                                      alert.severity.includes("Perigo") ? "bg-amber-100 border-amber-400 text-amber-800" : "bg-blue-100 border-blue-400 text-blue-800";
+
+                const alertCard = document.createElement('div');
+                alertCard.className = `p-4 border-l-4 rounded bg-gray-50 shadow-sm flex flex-col md:flex-row justify-between items-start gap-4 ${severityColor}`;
+                alertCard.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-base">${alert.type}</span>
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-white border">${alert.severity}</span>
+                        </div>
+                        <p class="text-sm font-bold text-gray-900">📍 ${alert.location}</p>
+                        <p class="text-sm text-gray-700">${alert.description || 'Sem descrição adicional.'}</p>
+                    </div>
+                    <span class="text-xs text-gray-500 font-medium whitespace-nowrap">${alert.time}</span>
+                `;
+                feedList.prepend(alertCard); // Adiciona no topo do feed
+
+                // Inserção no Mapa
+                L.marker(alert.coords).addTo(map)
+                    .bindPopup(`<b>${alert.type}</b><br><b>Local:</b> ${alert.location}<br>${alert.description}`);
+            });
+        }
+
+        // Evento de envio do formulário
+        document.getElementById('alertForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const location = document.getElementById('location').value;
+            const type = document.getElementById('type').value;
+            const severity = document.getElementById('severity').value;
+            const description = document.getElementById('description').value;
+
+            // Simula uma variação leve na coordenada para não sobrepor tudo no centro de Russas
+            const randomOffsetLat = (Math.random() - 0.5) * 0.02;
+            const randomOffsetLng = (Math.random() - 0.5) * 0.02;
+
+            const newAlert = {
+                id: Date.now(),
+                location: location,
+                type: type,
+                severity: severity,
+                description: description,
+                time: "Agora mesmo",
+                coords: [russasCoords[0] + randomOffsetLat, russasCoords[1] + randomOffsetLng]
+            };
+
+            // Adiciona ao início do array e atualiza a tela
+            alerts.push(newAlert);
+            renderAlerts();
+
+            // Move o mapa para o novo alerta gerado
+            map.setView(newAlert.coords, 14);
+
+            // Limpa o formulário
+            document.getElementById('alertForm').reset();
+        });
+
+        // Inicialização Inicial
+        renderAlerts();
+    </script>
+</body>
+</html>
